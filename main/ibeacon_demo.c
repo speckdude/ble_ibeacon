@@ -42,8 +42,6 @@ typedef struct {
     int transmittedRSSI; 
 }storedData;
 
-#define INIT_STOREDDATA(x) storedData x = {.count = 0}
-
 static const char* DEMO_TAG = "IBEACON_DEMO";
 extern esp_ble_ibeacon_vendor_t vendor_config;
 
@@ -51,10 +49,13 @@ extern esp_ble_ibeacon_vendor_t vendor_config;
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
 void average(void);
-void getDistance(void);
+double getDistance(int averageRSSI, int measuredRSSI);
+int foundBefore(int x);
+int addtoFound(int x);
+double getAverage(int x[]);
+
 int sumPower, numSignals;
 double averagePower, n;
-double distance;
 int P;
 
 int foundArray[ARRAYSIZE];
@@ -127,7 +128,7 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 
                 
                 esp_ble_ibeacon_t *ibeacon_data = (esp_ble_ibeacon_t*)(scan_result->scan_rst.ble_adv);
-                ESP_LOGI(DEMO_TAG, "----------iBeacon Found----------");
+                //ESP_LOGI(DEMO_TAG, "----------iBeacon Found----------");
                 
                 // esp_log_buffer_hex("IBEACON_DEMO: Device address:", scan_result->scan_rst.bda, ESP_BD_ADDR_LEN );
                 // esp_log_buffer_hex("IBEACON_DEMO: Proximity UUID:", ibeacon_data->ibeacon_vendor.proximity_uuid, ESP_UUID_LEN_128);
@@ -135,24 +136,52 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 // uint16_t major = ENDIAN_CHANGE_U16(ibeacon_data->ibeacon_vendor.major);
                 uint16_t minor = ENDIAN_CHANGE_U16(ibeacon_data->ibeacon_vendor.minor);
                 // ESP_LOGI(DEMO_TAG, "Major: 0x%04x (%d)", major, major);
-                ESP_LOGI(DEMO_TAG, "Minor: 0x%04x (%d)", minor, minor);
+                //ESP_LOGI(DEMO_TAG, "Minor: 0x%04x (%d)", minor, minor);
                 // ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
                 // ESP_LOGI(DEMO_TAG, "RSSI of packet:%d dbm", scan_result->scan_rst.rssi);
             
                 int ind = foundBefore(minor);
+                if(ind == -2){
+                    ESP_LOGI(DEMO_TAG, "Too many unique beacons found. No more data analysis possible");
+                }
                 if(ind == -1){
+                    int x = addtoFound(minor);
+
+                    rawData[x].raw[rawData[x].count] = scan_result->scan_rst.rssi;
+                    //add transmitted RSSI for specific ibeacon 
+                    rawData[x].transmittedRSSI = ibeacon_data->ibeacon_vendor.measured_power;
+                    //increment count
+                    rawData[x].count = rawData[x].count + 1;
 
                 }
-                P = ibeacon_data->ibeacon_vendor.measured_power;
-                ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
+                else{
+                    //add measured rssi to raw data arrray 
+                    rawData[ind].raw[rawData[ind].count] = scan_result->scan_rst.rssi;
+                    //increment count
+                    rawData[ind].count = rawData[ind].count + 1;
+                    if(rawData[ind].count == 10){
+                        ESP_LOGI(DEMO_TAG, "MEASURED RSSI FROM BEACON %d: %d \n", foundArray[ind], rawData[ind].transmittedRSSI);
+                        //get average and add to final array
+                        double avg = getAverage(rawData[ind].raw);
+                        ESP_LOGI(DEMO_TAG, "AVG POWER FROM BEACON %d: %lf \n", foundArray[ind], avg);
+                        double distance = getDistance(avg, rawData[ind].transmittedRSSI);
+                        ESP_LOGI(DEMO_TAG, "DISTSNCE FROM BEACON %d: %lf \n", foundArray[ind], distance);
+
+                        //get ready for a new set of values, move back to index 0
+                        rawData[ind].count = 0;
+                    }
+                }
+                //P = ibeacon_data->ibeacon_vendor.measured_power;
+                //ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
                 sumPower += scan_result->scan_rst.rssi;
                 numSignals ++;
-
+/*
                 if(numSignals == 10)
                 {
                     average();
                     getDistance();
                 }
+                */
             }
             break;
         default:
@@ -217,18 +246,43 @@ void average(void)
     //getDistance();
 }
 
+int foundBefore(int x){
+    if(foundCount == ARRAYSIZE) return -2;
+    int i;
+    for(i = 0; i < ARRAYSIZE; i++){
+        if(x == foundArray[i]) return i;
+    }
+    return -1;
+}
 
-void getDistance(void)
+int addtoFound(int x){
+    foundArray[foundCount] = x; 
+    foundCount++;
+    return foundCount-1;
+}
+
+double getDistance(int averageRSSI, int measuredRSSI)
 {
-    distance = pow(10, ((double)P-averagePower)/((double)10*n));
-     ESP_LOGI(DEMO_TAG, "estimated distance:%lf m", distance);
+    double distance = pow(10, ((double)measuredRSSI-averageRSSI)/((double)10*n));
+     //ESP_LOGI(DEMO_TAG, "estimated distance:%lf m", distance);
+    return distance;
 }
 
 void initData(void){
     int i;
     for(i = 0; i < ARRAYSIZE; i++){
-        INIT_STOREDDATA(rawData[i]);
+        rawData[i].count = 0;
     }
+}
+
+double getAverage(int x[]){
+    int tot = 0; 
+    int i;
+    for(i = 0; i < 10; i++){
+        tot += x[i];
+    }
+    double y = (double) tot;
+    return (y/10.0);
 }
 void app_main()
 {
@@ -238,10 +292,15 @@ void app_main()
     esp_bt_controller_init(&bt_cfg);
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
     initData();
+    // finalArray = (int *)malloc(sizeof(double)* ARRAYSIZE);
+    // foundArray = (int *)malloc(sizeof(int)*ARRAYSIZE);
+    // int i;
+    //
     sumPower = 0;
     numSignals = 0;
     averagePower = 0;
     foundCount = 0;
+
     n =2;
 
     ble_ibeacon_init();
@@ -260,4 +319,5 @@ void app_main()
     }
 #endif
 }
+
 
