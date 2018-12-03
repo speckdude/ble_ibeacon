@@ -35,6 +35,15 @@
 #include "freertos/FreeRTOS.h"
 #include <math.h>
 
+#define ARRAYSIZE 10
+typedef struct {
+    int raw[10];
+    int count;
+    int transmittedRSSI; 
+}storedData;
+
+#define INIT_STOREDDATA(x) storedData x = {.count = 0}
+
 static const char* DEMO_TAG = "IBEACON_DEMO";
 extern esp_ble_ibeacon_vendor_t vendor_config;
 
@@ -47,6 +56,13 @@ int sumPower, numSignals;
 double averagePower, n;
 double distance;
 int P;
+
+int foundArray[ARRAYSIZE];
+int foundCount;
+double finalArray[ARRAYSIZE];
+
+storedData rawData[ARRAYSIZE];
+
 
 #if (IBEACON_MODE == IBEACON_RECEIVER)
 static esp_ble_scan_params_t ble_scan_params = {
@@ -71,7 +87,8 @@ static esp_ble_adv_params_t ble_adv_params = {
 
 
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
-{
+{   
+
     esp_err_t err;
 
     switch (event) {
@@ -111,18 +128,21 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                 
                 esp_ble_ibeacon_t *ibeacon_data = (esp_ble_ibeacon_t*)(scan_result->scan_rst.ble_adv);
                 ESP_LOGI(DEMO_TAG, "----------iBeacon Found----------");
-                /*
-                esp_log_buffer_hex("IBEACON_DEMO: Device address:", scan_result->scan_rst.bda, ESP_BD_ADDR_LEN );
-                esp_log_buffer_hex("IBEACON_DEMO: Proximity UUID:", ibeacon_data->ibeacon_vendor.proximity_uuid, ESP_UUID_LEN_128);
+                
+                // esp_log_buffer_hex("IBEACON_DEMO: Device address:", scan_result->scan_rst.bda, ESP_BD_ADDR_LEN );
+                // esp_log_buffer_hex("IBEACON_DEMO: Proximity UUID:", ibeacon_data->ibeacon_vendor.proximity_uuid, ESP_UUID_LEN_128);
 
-                uint16_t major = ENDIAN_CHANGE_U16(ibeacon_data->ibeacon_vendor.major);
+                // uint16_t major = ENDIAN_CHANGE_U16(ibeacon_data->ibeacon_vendor.major);
                 uint16_t minor = ENDIAN_CHANGE_U16(ibeacon_data->ibeacon_vendor.minor);
-                ESP_LOGI(DEMO_TAG, "Major: 0x%04x (%d)", major, major);
+                // ESP_LOGI(DEMO_TAG, "Major: 0x%04x (%d)", major, major);
                 ESP_LOGI(DEMO_TAG, "Minor: 0x%04x (%d)", minor, minor);
-                ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
-                ESP_LOGI(DEMO_TAG, "RSSI of packet:%d dbm", scan_result->scan_rst.rssi);
-            */
+                // ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
+                // ESP_LOGI(DEMO_TAG, "RSSI of packet:%d dbm", scan_result->scan_rst.rssi);
+            
+                int ind = foundBefore(minor);
+                if(ind == -1){
 
+                }
                 P = ibeacon_data->ibeacon_vendor.measured_power;
                 ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
                 sumPower += scan_result->scan_rst.rssi;
@@ -204,6 +224,12 @@ void getDistance(void)
      ESP_LOGI(DEMO_TAG, "estimated distance:%lf m", distance);
 }
 
+void initData(void){
+    int i;
+    for(i = 0; i < ARRAYSIZE; i++){
+        INIT_STOREDDATA(rawData[i]);
+    }
+}
 void app_main()
 {
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -211,14 +237,14 @@ void app_main()
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     esp_bt_controller_init(&bt_cfg);
     esp_bt_controller_enable(ESP_BT_MODE_BLE);
-
+    initData();
     sumPower = 0;
     numSignals = 0;
     averagePower = 0;
+    foundCount = 0;
     n =2;
 
     ble_ibeacon_init();
-
     /* set scan parameters */
 #if (IBEACON_MODE == IBEACON_RECEIVER)
     esp_ble_gap_set_scan_params(&ble_scan_params);
