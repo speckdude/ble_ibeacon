@@ -36,10 +36,13 @@
 #include <math.h>
 
 #define ARRAYSIZE 10
+#define ROOMSIZE  5//size in meters of room
+
 typedef struct {
     int raw[10];
     int count;
-    int transmittedRSSI; 
+    int transmittedRSSI;
+    double lastDistance; 
 }storedData;
 
 static const char* DEMO_TAG = "IBEACON_DEMO";
@@ -53,6 +56,9 @@ double getDistance(int averageRSSI, int measuredRSSI);
 int foundBefore(int x);
 int addtoFound(int x);
 double getAverage(int x[]);
+void findLocation();
+void zeroLocation();
+void printLocation();
 
 int sumPower, numSignals;
 double averagePower, n;
@@ -63,6 +69,8 @@ int foundCount;
 double finalArray[ARRAYSIZE];
 
 storedData rawData[ARRAYSIZE];
+
+uint8_t possibleLocations[ROOMSIZE*4][ROOMSIZE*4];  //give quarter meter precision
 
 
 #if (IBEACON_MODE == IBEACON_RECEIVER)
@@ -159,22 +167,26 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                     rawData[ind].raw[rawData[ind].count] = scan_result->scan_rst.rssi;
                     //increment count
                     rawData[ind].count = rawData[ind].count + 1;
-                    if(rawData[ind].count == 10){
-                        ESP_LOGI(DEMO_TAG, "MEASURED RSSI FROM BEACON %d: %d \n", foundArray[ind], rawData[ind].transmittedRSSI);
+                    if(rawData[ind].count == 0){
+                        rawData[ind].transmittedRSSI = ibeacon_data->ibeacon_vendor.measured_power;
+                    }
+                    else if(rawData[ind].count == 10){
+                        ESP_LOGI(DEMO_TAG, "MEASURED RSSI FROM BEACON (supplied) %d: %d \n", foundArray[ind], rawData[ind].transmittedRSSI);
                         //get average and add to final array
                         double avg = getAverage(rawData[ind].raw);
                         ESP_LOGI(DEMO_TAG, "AVG POWER FROM BEACON %d: %lf \n", foundArray[ind], avg);
                         double distance = getDistance(avg, rawData[ind].transmittedRSSI);
                         ESP_LOGI(DEMO_TAG, "DISTSNCE FROM BEACON %d: %lf \n", foundArray[ind], distance);
-
+                        rawData[ind].lastDistance = distance;
                         //get ready for a new set of values, move back to index 0
                         rawData[ind].count = 0;
+                        findLocation();
                     }
                 }
                 //P = ibeacon_data->ibeacon_vendor.measured_power;
                 //ESP_LOGI(DEMO_TAG, "Measured power (RSSI at a 1m distance):%d dbm", ibeacon_data->ibeacon_vendor.measured_power);
-                sumPower += scan_result->scan_rst.rssi;
-                numSignals ++;
+                //sumPower += scan_result->scan_rst.rssi;
+                //numSignals ++;
 /*
                 if(numSignals == 10)
                 {
@@ -272,6 +284,88 @@ void initData(void){
     int i;
     for(i = 0; i < ARRAYSIZE; i++){
         rawData[i].count = 0;
+        rawData[i].lastDistance = 0;
+    }
+}
+
+void zeroLocation(){
+    for(int i = 0; i< ROOMSIZE*4; i++)
+    {
+        for(int j = 0; j< ROOMSIZE*4; j++)
+        {
+            possibleLocations[i][j] = 0;
+        }
+    }
+}
+
+void findLocation(){
+    zeroLocation();
+    int i,j;
+    int loc = foundBefore(0);
+    if(loc > -1)
+    {
+        for(i = 0; i< rawData[loc].lastDistance*4; i++)
+        {
+             for(j=0; j< rawData[loc].lastDistance*4; j++)
+            {
+                if (j>(ROOMSIZE*4)-1) break;
+                possibleLocations[i][j] = possibleLocations [i][j] + 1;
+            }
+        if (i>(ROOMSIZE*4)-1) break;
+        }
+    }
+    loc = foundBefore(1);
+    if(loc > -1)
+    {
+        for(i = 0; i< rawData[loc].lastDistance*4; i++)
+        {
+            for(j=0; j< rawData[loc].lastDistance*4; j++)
+            {
+                if (j>(ROOMSIZE*4)-1) break;
+                possibleLocations[i][ROOMSIZE*4-j] = possibleLocations [i][ROOMSIZE*4-j] + 1;
+            }
+        if (i>(ROOMSIZE*4)-1) break;
+        }
+    }
+    loc = foundBefore(2);
+    if(loc > -1)
+    {
+        for(i = 0; i< rawData[loc].lastDistance*4; i++)
+        {
+            for(j=0; j< rawData[loc].lastDistance*4; j++)
+            {
+                if (j>(ROOMSIZE*4)-1) break;
+                possibleLocations[ROOMSIZE*4-i][j] = possibleLocations [ROOMSIZE*4-i][j] + 1;
+            }
+        if (i>(ROOMSIZE*4)-1) break;
+        }
+    }
+    loc = foundBefore(3);
+    if(loc > -1)
+    {
+        for(i = 0; i< rawData[loc].lastDistance*4; i++)
+        {
+            for(j=0; j< rawData[loc].lastDistance*4; j++)
+            {
+                if (j>(ROOMSIZE*4)-1) break;
+                possibleLocations[ROOMSIZE*4-i][ROOMSIZE*4-j] = possibleLocations [ROOMSIZE*4-i][ROOMSIZE*4-j] + 1;
+            }
+        if (i>(ROOMSIZE*4)-1) break;
+        }
+    }
+    printLocation();
+
+}
+
+void printLocation()
+{
+    for(int i=0; i< ROOMSIZE*4; i++)
+    {
+        for(int j=0; j< ROOMSIZE*4; j++)
+        {
+            printf("%d ",possibleLocations[i][j] );
+        }
+        printf("\n");
     }
 }
 
@@ -284,6 +378,7 @@ double getAverage(int x[]){
     double y = (double) tot;
     return (y/10.0);
 }
+
 void app_main()
 {
     ESP_ERROR_CHECK(nvs_flash_init());
