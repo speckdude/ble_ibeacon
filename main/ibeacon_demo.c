@@ -306,12 +306,12 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
+            if (i>(ROOMSIZE*4)-1) break;
              for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
                 if (j>(ROOMSIZE*4)-1) break;
                 possibleLocations[i][j] = possibleLocations [i][j] + 1;
             }
-        if (i>(ROOMSIZE*4)-1) break;
         }
     }
     loc = foundBefore(1);
@@ -319,12 +319,12 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
+            if (i>(ROOMSIZE*4)-1) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
                 if (j>(ROOMSIZE*4)-1) break;
                 possibleLocations[i][ROOMSIZE*4-j] = possibleLocations [i][ROOMSIZE*4-j] + 1;
             }
-        if (i>(ROOMSIZE*4)-1) break;
         }
     }
     loc = foundBefore(2);
@@ -332,6 +332,7 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
+            if (i>(ROOMSIZE*4)-1) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
                 if (j>(ROOMSIZE*4)-1) break;
@@ -345,12 +346,12 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
+            if (i>(ROOMSIZE*4)-1) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
                 if (j>(ROOMSIZE*4)-1) break;
                 possibleLocations[ROOMSIZE*4-i][ROOMSIZE*4-j] = possibleLocations [ROOMSIZE*4-i][ROOMSIZE*4-j] + 1;
             }
-        if (i>(ROOMSIZE*4)-1) break;
         }
     }
     printLocation();
