@@ -36,7 +36,7 @@
 #include <math.h>
 
 #define ARRAYSIZE 10
-#define ROOMSIZE  5//size in meters of room
+#define ROOMSIZE  10//size in meters of room
 
 typedef struct {
     int raw[10];
@@ -310,6 +310,7 @@ void findLocation(){
              for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
                 if (j>(ROOMSIZE*4)-1) break;
+                if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
                 possibleLocations[i][j] = possibleLocations [i][j] + 1;
             }
         }
@@ -322,8 +323,9 @@ void findLocation(){
             if (i>(ROOMSIZE*4)-1) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
-                if (j>(ROOMSIZE*4)-1) break;
-                possibleLocations[i][ROOMSIZE*4-j] = possibleLocations [i][ROOMSIZE*4-j] + 1;
+                if (ROOMSIZE*4-j< 0) break;
+                if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
+                possibleLocations[i][ROOMSIZE*4-j-1] = possibleLocations [i][ROOMSIZE*4-j-1] + 1;
             }
         }
     }
@@ -332,11 +334,12 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
-            if (i>(ROOMSIZE*4)-1) break;
+            if (ROOMSIZE*4-i < 0) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
                 if (j>(ROOMSIZE*4)-1) break;
-                possibleLocations[ROOMSIZE*4-i][j] = possibleLocations [ROOMSIZE*4-i][j] + 1;
+                if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
+                possibleLocations[ROOMSIZE*4-i-1][j] = possibleLocations [ROOMSIZE*4-i-1][j] + 1;
             }
         if (i>(ROOMSIZE*4)-1) break;
         }
@@ -346,11 +349,12 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
-            if (i>(ROOMSIZE*4)-1) break;
+            if (ROOMSIZE*4-i< 0) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
-                if (j>(ROOMSIZE*4)-1) break;
-                possibleLocations[ROOMSIZE*4-i][ROOMSIZE*4-j] = possibleLocations [ROOMSIZE*4-i][ROOMSIZE*4-j] + 1;
+                if (ROOMSIZE*4-j< 0) break;
+                if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
+                possibleLocations[ROOMSIZE*4-i-1][ROOMSIZE*4-j-1] = possibleLocations [ROOMSIZE*4-i-1][ROOMSIZE*4-j-1] + 1;
             }
         }
     }
