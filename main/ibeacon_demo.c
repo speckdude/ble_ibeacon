@@ -36,7 +36,8 @@
 #include <math.h>
 
 #define ARRAYSIZE 10
-#define ROOMSIZE  10//size in meters of room
+#define ROOMSIZE  13//size in meters of room
+#define SAMPLESIZE 10
 
 typedef struct {
     int raw[10];
@@ -52,7 +53,7 @@ extern esp_ble_ibeacon_vendor_t vendor_config;
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
 void average(void);
-double getDistance(int averageRSSI, int measuredRSSI);
+double getDistance(double averageRSSI, int measuredRSSI);
 int foundBefore(int x);
 int addtoFound(int x);
 double getAverage(int x[]);
@@ -170,13 +171,13 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *par
                     if(rawData[ind].count == 0){
                         rawData[ind].transmittedRSSI = ibeacon_data->ibeacon_vendor.measured_power;
                     }
-                    else if(rawData[ind].count == 10){
+                    else if(rawData[ind].count == SAMPLESIZE){
                         ESP_LOGI(DEMO_TAG, "MEASURED RSSI FROM BEACON (supplied) %d: %d \n", foundArray[ind], rawData[ind].transmittedRSSI);
                         //get average and add to final array
                         double avg = getAverage(rawData[ind].raw);
                         ESP_LOGI(DEMO_TAG, "AVG POWER FROM BEACON %d: %lf \n", foundArray[ind], avg);
                         double distance = getDistance(avg, rawData[ind].transmittedRSSI);
-                        ESP_LOGI(DEMO_TAG, "DISTSNCE FROM BEACON %d: %lf \n", foundArray[ind], distance);
+                        ESP_LOGI(DEMO_TAG, "DISTASNCE FROM BEACON %d: %lf \n", foundArray[ind], distance);
                         rawData[ind].lastDistance = distance;
                         //get ready for a new set of values, move back to index 0
                         rawData[ind].count = 0;
@@ -273,10 +274,17 @@ int addtoFound(int x){
     return foundCount-1;
 }
 
-double getDistance(int averageRSSI, int measuredRSSI)
+double getDistance(double averageRSSI, int measuredRSSI)
 {
-    double distance = pow(10, ((double)measuredRSSI-averageRSSI)/((double)10*n));
+    double difference = (double)measuredRSSI-averageRSSI;
+    printf("RSSI difference is %f\n", difference);
+    double distance = pow(10, (difference/((double)10*n)));
      //ESP_LOGI(DEMO_TAG, "estimated distance:%lf m", distance);
+    printf("distance calculated = %f\n", distance);
+
+    printf("distance 2: %f \n",pow(10, (difference/((double)10*n))));\
+
+    if(distance > ROOMSIZE) return ROOMSIZE;
     return distance;
 }
 
@@ -301,31 +309,17 @@ void zeroLocation(){
 void findLocation(){
     zeroLocation();
     int i,j;
-    int loc = foundBefore(0);
+    int loc = foundBefore(1);
     if(loc > -1)
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
-            if (i>(ROOMSIZE*4)-1) break;
+            if (i>((ROOMSIZE*4)-1)) break;
              for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
-                if (j>(ROOMSIZE*4)-1) break;
+                if (j>((ROOMSIZE*4)-1)) break;
                 if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
                 possibleLocations[i][j] = possibleLocations [i][j] + 1;
-            }
-        }
-    }
-    loc = foundBefore(1);
-    if(loc > -1)
-    {
-        for(i = 0; i< rawData[loc].lastDistance*4; i++)
-        {
-            if (i>(ROOMSIZE*4)-1) break;
-            for(j=0; j< rawData[loc].lastDistance*4; j++)
-            {
-                if (ROOMSIZE*4-j< 0) break;
-                if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
-                possibleLocations[i][ROOMSIZE*4-j-1] = possibleLocations [i][ROOMSIZE*4-j-1] + 1;
             }
         }
     }
@@ -334,14 +328,13 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
-            if (ROOMSIZE*4-i < 0) break;
+            if (i>((ROOMSIZE*4)-1)) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
-                if (j>(ROOMSIZE*4)-1) break;
+                if ((ROOMSIZE*4-j)< 0) break;
                 if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
-                possibleLocations[ROOMSIZE*4-i-1][j] = possibleLocations [ROOMSIZE*4-i-1][j] + 1;
+                possibleLocations[i][ROOMSIZE*4-j-1] = possibleLocations [i][ROOMSIZE*4-j-1] + 1;
             }
-        if (i>(ROOMSIZE*4)-1) break;
         }
     }
     loc = foundBefore(3);
@@ -349,10 +342,25 @@ void findLocation(){
     {
         for(i = 0; i< rawData[loc].lastDistance*4; i++)
         {
+            if ((ROOMSIZE*4-i) < 0) break;
+            for(j=0; j< rawData[loc].lastDistance*4; j++)
+            {
+                if (j>((ROOMSIZE*4)-1)) break;
+                if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
+                possibleLocations[ROOMSIZE*4-i-1][j] = possibleLocations [ROOMSIZE*4-i-1][j] + 1;
+            }
+        if (i>(ROOMSIZE*4)-1) break;
+        }
+    }
+    loc = foundBefore(4);
+    if(loc > -1)
+    {
+        for(i = 0; i< rawData[loc].lastDistance*4; i++)
+        {
             if (ROOMSIZE*4-i< 0) break;
             for(j=0; j< rawData[loc].lastDistance*4; j++)
             {
-                if (ROOMSIZE*4-j< 0) break;
+                if ((ROOMSIZE*4-j)< 0) break;
                 if(j*j+i*i > (rawData[loc].lastDistance*4)*(rawData[loc].lastDistance*4)) break;
                 possibleLocations[ROOMSIZE*4-i-1][ROOMSIZE*4-j-1] = possibleLocations [ROOMSIZE*4-i-1][ROOMSIZE*4-j-1] + 1;
             }
@@ -377,12 +385,13 @@ void printLocation()
 double getAverage(int x[]){
     int tot = 0; 
     int i;
-    for(i = 0; i < 10; i++){
+    for(i = 0; i < SAMPLESIZE; i++){
         tot += x[i];
     }
     double y = (double) tot;
     return (y/10.0);
 }
+
 
 void app_main()
 {
